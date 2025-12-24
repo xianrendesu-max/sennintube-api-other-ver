@@ -1,126 +1,166 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>仙人YouTubeビュアー</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: sans-serif; background: #1e1e2f; color: #fff; margin: 0; }
-    header { background: #27293d; padding: 1em; text-align: center; font-size: 1.5em; }
-    nav { display: flex; justify-content: center; background: #33354a; }
-    nav button { flex: 1; padding: 1em; border: none; background: none; color: #aaa; cursor: pointer; }
-    nav button.active { background: #444667; color: #fff; font-weight: bold; }
-    main { padding: 1em; }
-    section { display: none; }
-    section.active { display: block; }
-    .search-box { display: flex; margin-bottom: 1em; }
-    .search-box input { flex: 1; padding: 0.5em; border-radius: 4px 0 0 4px; border: none; }
-    .search-box button { padding: 0.5em 1em; background: #4caf50; color: white; border: none; border-radius: 0 4px 4px 0; cursor: pointer; }
-    .video-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1em; }
-    .video-card { background: #2d2f44; border-radius: 8px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
-    .video-card:hover { transform: scale(1.03); }
-    .video-card img { width: 100%; display: block; }
-    .video-card .info { padding: 0.5em; }
-    .video-card .title { font-weight: bold; margin-bottom: 0.3em; }
-    .video-card .channel { color: #aaa; font-size: 0.9em; }
-    .clear-btn, .load-more-btn {
-      background: #f44336; color: white; padding: 0.5em 1em;
-      border: none; margin: 1em auto; display: block;
-      border-radius: 4px; cursor: pointer;
-    }
-    .load-more-btn { background: #2196f3; }
-  </style>
+<meta charset="UTF-8">
+<title>仙人YouTubeビュアー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: sans-serif;
+  background: #1e1e2f;
+  color: #fff;
+  margin: 0;
+}
+header {
+  background: #27293d;
+  padding: 1em;
+  text-align: center;
+  font-size: 1.5em;
+}
+.search-box {
+  display: flex;
+  margin: 1em;
+}
+.search-box input {
+  flex: 1;
+  padding: 0.5em;
+  border: none;
+  border-radius: 4px 0 0 4px;
+}
+.search-box button {
+  padding: 0.5em 1em;
+  background: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+}
+.video-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1em;
+  padding: 1em;
+}
+.video-card {
+  background: #2d2f44;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.video-card img {
+  width: 100%;
+}
+.video-card .info {
+  padding: 0.5em;
+}
+.video-card .title {
+  font-weight: bold;
+}
+.video-card .channel {
+  color: #aaa;
+  font-size: 0.9em;
+}
+#loadMore {
+  display: none;
+  margin: 1em auto;
+  padding: 0.5em 1em;
+  background: #2196f3;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ローディング */
+#loading {
+  display: none;
+  text-align: center;
+  margin-top: 2em;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #555;
+  border-top: 4px solid #4caf50;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: auto;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+#message {
+  text-align: center;
+  color: #aaa;
+  margin-top: 1em;
+}
+</style>
 </head>
+
 <body>
 
 <header>仙人YouTubeビュアー</header>
 
-<nav>
-  <button id="tab-search" class="active">検索</button>
-  <button id="tab-history">履歴</button>
-  <button id="tab-favorites">お気に入り</button>
-</nav>
+<div class="search-box">
+  <input id="searchInput" placeholder="検索ワードを入力">
+  <button id="searchBtn">検索</button>
+</div>
 
-<main>
-  <section id="search-section" class="active">
-    <div class="search-box">
-      <input type="text" id="search-input" placeholder="検索ワードを入力...">
-      <button id="search-button">検索</button>
-    </div>
-    <div id="video-list" class="video-list"></div>
-    <button id="load-more" class="load-more-btn" style="display:none;">もっと見る</button>
-  </section>
+<div id="loading">
+  <div class="spinner"></div>
+  <div>読み込み中...</div>
+</div>
 
-  <section id="history-section">
-    <button class="clear-btn" id="clear-history">履歴を全削除</button>
-    <div id="history-list" class="video-list"></div>
-  </section>
+<div id="message"></div>
 
-  <section id="favorites-section">
-    <div id="favorites-list" class="video-list"></div>
-  </section>
-</main>
+<div id="videoList" class="video-list"></div>
+
+<button id="loadMore">もっと見る</button>
 
 <script>
-/* ===== Invidious 自動切り替え ===== */
+/* =========================
+   Invidious 自動切り替え
+========================= */
 const INVIDIOUS_LIST = [
   "https://yewtu.be",
-  "https://vid.puffyan.us",
   "https://invidious.fdn.fr",
-  "https://invidious.tiekoetter.com",
-  "https://invidious.privacydev.net"
+  "https://vid.puffyan.us",
+  "https://invidious.tiekoetter.com"
 ];
+let invidiousIndex = 0;
 
-let invidiousIndex = Number(localStorage.getItem("invidious_index") || 0);
+/* =========================
+   Elements
+========================= */
+const searchInput = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
+const videoList = document.getElementById("videoList");
+const loadMoreBtn = document.getElementById("loadMore");
+const loading = document.getElementById("loading");
+const message = document.getElementById("message");
 
-function getInvidious() {
-  return INVIDIOUS_LIST[invidiousIndex];
-}
-
-function nextInvidious() {
-  invidiousIndex = (invidiousIndex + 1) % INVIDIOUS_LIST.length;
-  localStorage.setItem("invidious_index", invidiousIndex);
-}
-
-/* ===== Storage ===== */
-const STORAGE_HISTORY = 'sennin_youtube_history';
-const STORAGE_FAV = 'sennin_youtube_favorites';
-
-/* ===== Elements ===== */
-const searchInput = document.getElementById('search-input');
-const searchButton = document.getElementById('search-button');
-const videoListEl = document.getElementById('video-list');
-const historyListEl = document.getElementById('history-list');
-const favoritesListEl = document.getElementById('favorites-list');
-const loadMoreBtn = document.getElementById('load-more');
-
-const tabSearch = document.getElementById('tab-search');
-const tabHistory = document.getElementById('tab-history');
-const tabFavorites = document.getElementById('tab-favorites');
-const clearHistoryBtn = document.getElementById('clear-history');
-
-/* ===== State ===== */
+/* =========================
+   State
+========================= */
+let query = "";
 let page = 1;
-let currentQuery = '';
 let isLoading = false;
 
-let history = JSON.parse(localStorage.getItem(STORAGE_HISTORY) || '[]');
-let favorites = JSON.parse(localStorage.getItem(STORAGE_FAV) || '[]');
-
-function save(key, data) {
-  localStorage.setItem(key, JSON.stringify(data));
-}
-
-/* ===== Fetch（自動切り替え対応） ===== */
-async function fetchVideos(query, append = false) {
+/* =========================
+   Fetch Search
+========================= */
+async function fetchVideos(append) {
   if (isLoading || !query) return;
   isLoading = true;
 
-  let success = false;
-  let data;
+  loading.style.display = "block";
+  message.textContent = "";
+
+  let videos = null;
 
   for (let i = 0; i < INVIDIOUS_LIST.length; i++) {
-    const base = getInvidious();
+    const base = INVIDIOUS_LIST[invidiousIndex];
     const url = `${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=${page}`;
 
     try {
@@ -128,40 +168,39 @@ async function fetchVideos(query, append = false) {
       setTimeout(() => controller.abort(), 8000);
 
       const res = await fetch(url, { signal: controller.signal });
-      if (!res.ok) throw new Error("bad response");
+      if (!res.ok) throw new Error();
 
-      data = await res.json();
-      success = true;
+      videos = await res.json();
       break;
-    } catch (e) {
-      console.warn("Invidious failed:", base);
-      nextInvidious();
+    } catch {
+      invidiousIndex = (invidiousIndex + 1) % INVIDIOUS_LIST.length;
     }
   }
 
-  if (!success) {
-    alert("現在利用可能な Invidious サーバーがありません");
-    isLoading = false;
+  loading.style.display = "none";
+  isLoading = false;
+
+  if (!videos || videos.length === 0) {
+    if (!append) videoList.innerHTML = "";
+    message.textContent = "動画を取得できませんでした";
     return;
   }
 
-  if (!append) videoListEl.innerHTML = '';
-  appendVideos(data, videoListEl);
+  if (!append) videoList.innerHTML = "";
+  renderVideos(videos);
 
-  loadMoreBtn.style.display = data.length === 20 ? 'block' : 'none';
+  loadMoreBtn.style.display = videos.length === 20 ? "block" : "none";
   page++;
-  isLoading = false;
 }
 
-/* ===== Render ===== */
-function appendVideos(videos, container) {
+/* =========================
+   Render
+========================= */
+function renderVideos(videos) {
   videos.forEach(v => {
-    const thumb =
-      v.videoThumbnails?.find(t => t.quality === "medium")?.url ||
-      v.videoThumbnails?.[0]?.url || '';
-
-    const card = document.createElement('div');
-    card.className = 'video-card';
+    const thumb = v.videoThumbnails?.[0]?.url || "";
+    const card = document.createElement("div");
+    card.className = "video-card";
     card.innerHTML = `
       <img src="${thumb}">
       <div class="info">
@@ -169,82 +208,31 @@ function appendVideos(videos, container) {
         <div class="channel">${v.author}</div>
       </div>
     `;
-
     card.onclick = () => {
-      if (!history.some(h => h.videoId === v.videoId)) {
-        history.unshift(v);
-        history = history.slice(0, 50);
-        save(STORAGE_HISTORY, history);
-      }
-      location.href = \`watch.html?id=\${v.videoId}\`;
+      location.href = "watch.html?id=" + v.videoId;
     };
-
-    container.appendChild(card);
+    videoList.appendChild(card);
   });
 }
 
-function renderHistory() {
-  historyListEl.innerHTML = '';
-  appendVideos(history, historyListEl);
-}
-
-function renderFavorites() {
-  favoritesListEl.innerHTML = '';
-  appendVideos(favorites, favoritesListEl);
-}
-
-/* ===== Tabs ===== */
-function switchTab(tab) {
-  [tabSearch, tabHistory, tabFavorites].forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
-
-  document.getElementById(\`\${tab}-section\`).classList.add('active');
-  document.getElementById(\`tab-\${tab}\`).classList.add('active');
-
-  if (tab === 'history') renderHistory();
-  if (tab === 'favorites') renderFavorites();
-}
-
-tabSearch.onclick = () => switchTab('search');
-tabHistory.onclick = () => switchTab('history');
-tabFavorites.onclick = () => switchTab('favorites');
-
-clearHistoryBtn.onclick = () => {
-  if (confirm('履歴を削除しますか？')) {
-    history = [];
-    save(STORAGE_HISTORY, history);
-    renderHistory();
-  }
-};
-
-/* ===== Search ===== */
-searchButton.onclick = () => {
-  const q = searchInput.value.trim();
-  if (!q) return;
-  currentQuery = q;
+/* =========================
+   Events
+========================= */
+searchBtn.onclick = () => {
+  query = searchInput.value.trim();
+  if (!query) return;
   page = 1;
-  fetchVideos(q);
+  fetchVideos(false);
 };
 
-searchInput.addEventListener('keypress', e => {
-  if (e.key === 'Enter') searchButton.click();
+searchInput.addEventListener("keypress", e => {
+  if (e.key === "Enter") searchBtn.click();
 });
 
-loadMoreBtn.onclick = () => fetchVideos(currentQuery, true);
+loadMoreBtn.onclick = () => {
+  fetchVideos(true);
+};
 </script>
-
-<!-- 下部ボタン -->
-<div style="text-align:center;margin:2em 0;">
-  <a href="https://docs.google.com/forms/d/e/1FAIpQLSe0NXWhtUwApapvXSxXcxwVYAM4Paqa4GbpJ3oTPTaEH0C0uA/viewform"
-     target="_blank"
-     style="background:#4caf50;color:#fff;padding:.75em 1.5em;border-radius:4px;text-decoration:none;font-weight:bold;">
-    お問い合わせと回答
-  </a>
-  <a href="game.html"
-     style="background:#ff9800;color:#fff;padding:.75em 1.5em;border-radius:4px;text-decoration:none;font-weight:bold;">
-    ゲーム
-  </a>
-</div>
 
 </body>
 </html>
