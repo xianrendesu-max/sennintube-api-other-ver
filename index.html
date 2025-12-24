@@ -62,8 +62,25 @@
 </main>
 
 <script>
-/* ===== Invidious 設定 ===== */
-const INVIDIOUS = "https://yewtu.be";
+/* ===== Invidious 自動切り替え ===== */
+const INVIDIOUS_LIST = [
+  "https://yewtu.be",
+  "https://vid.puffyan.us",
+  "https://invidious.fdn.fr",
+  "https://invidious.tiekoetter.com",
+  "https://invidious.privacydev.net"
+];
+
+let invidiousIndex = Number(localStorage.getItem("invidious_index") || 0);
+
+function getInvidious() {
+  return INVIDIOUS_LIST[invidiousIndex];
+}
+
+function nextInvidious() {
+  invidiousIndex = (invidiousIndex + 1) % INVIDIOUS_LIST.length;
+  localStorage.setItem("invidious_index", invidiousIndex);
+}
 
 /* ===== Storage ===== */
 const STORAGE_HISTORY = 'sennin_youtube_history';
@@ -94,33 +111,54 @@ function save(key, data) {
   localStorage.setItem(key, JSON.stringify(data));
 }
 
-/* ===== Fetch ===== */
+/* ===== Fetch（自動切り替え対応） ===== */
 async function fetchVideos(query, append = false) {
   if (isLoading || !query) return;
   isLoading = true;
 
-  const url = `${INVIDIOUS}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=${page}`;
+  let success = false;
+  let data;
 
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
+  for (let i = 0; i < INVIDIOUS_LIST.length; i++) {
+    const base = getInvidious();
+    const url = `${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video&page=${page}`;
 
-    if (!append) videoListEl.innerHTML = '';
-    appendVideos(data, videoListEl);
+    try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 8000);
 
-    loadMoreBtn.style.display = data.length === 20 ? 'block' : 'none';
-    page++;
-  } catch {
-    alert('動画の取得に失敗しました');
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error("bad response");
+
+      data = await res.json();
+      success = true;
+      break;
+    } catch (e) {
+      console.warn("Invidious failed:", base);
+      nextInvidious();
+    }
   }
+
+  if (!success) {
+    alert("現在利用可能な Invidious サーバーがありません");
+    isLoading = false;
+    return;
+  }
+
+  if (!append) videoListEl.innerHTML = '';
+  appendVideos(data, videoListEl);
+
+  loadMoreBtn.style.display = data.length === 20 ? 'block' : 'none';
+  page++;
   isLoading = false;
 }
 
 /* ===== Render ===== */
 function appendVideos(videos, container) {
   videos.forEach(v => {
-    const thumb = v.videoThumbnails?.find(t => t.quality === "medium")?.url
-      || v.videoThumbnails?.[0]?.url || '';
+    const thumb =
+      v.videoThumbnails?.find(t => t.quality === "medium")?.url ||
+      v.videoThumbnails?.[0]?.url || '';
 
     const card = document.createElement('div');
     card.className = 'video-card';
@@ -138,7 +176,7 @@ function appendVideos(videos, container) {
         history = history.slice(0, 50);
         save(STORAGE_HISTORY, history);
       }
-      location.href = `watch.html?id=${v.videoId}`;
+      location.href = \`watch.html?id=\${v.videoId}\`;
     };
 
     container.appendChild(card);
@@ -160,8 +198,8 @@ function switchTab(tab) {
   [tabSearch, tabHistory, tabFavorites].forEach(b => b.classList.remove('active'));
   document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
 
-  document.getElementById(`${tab}-section`).classList.add('active');
-  document.getElementById(`tab-${tab}`).classList.add('active');
+  document.getElementById(\`\${tab}-section\`).classList.add('active');
+  document.getElementById(\`tab-\${tab}\`).classList.add('active');
 
   if (tab === 'history') renderHistory();
   if (tab === 'favorites') renderFavorites();
